@@ -18,22 +18,30 @@ import {
 
 /**
  * ISOBMFF files (AVIF, HEIC) start with an `ftyp` box: a 4-byte big-endian
- * box size, the box type "ftyp", then the major brand. Validating the box
- * size keeps text documents from matching the brand bytes at offset 4, e.g.
- * an SVG starting with the XML comment `<!--ftypavif-->`.
+ * box size, the box type "ftyp", the major brand, a minor version, then the
+ * compatible brands. Returns the major brand followed by the compatible
+ * brands found in the first 1024 bytes, or no brands when there is no `ftyp`
+ * box. Validating the box size keeps text documents from matching the brand
+ * bytes at offset 4, e.g. an SVG starting with the XML comment
+ * `<!--ftypavif-->`.
  */
-function hasFtypBox(buffer: Buffer, brand: number[]): boolean {
+function getFtypBrands(buffer: Buffer): string[] {
   if (buffer.byteLength < 12) {
-    return false
+    return []
   }
   const boxSize = buffer.readUInt32BE(0)
-  if (boxSize < 16 || boxSize > buffer.byteLength) {
-    return false
+  if (
+    boxSize < 16 ||
+    boxSize > buffer.byteLength ||
+    buffer.toString('latin1', 4, 8) !== 'ftyp'
+  ) {
+    return []
   }
-  return (
-    [0x66, 0x74, 0x79, 0x70].every((b, i) => buffer[i + 4] === b) &&
-    brand.every((b, i) => buffer[i + 8] === b)
-  )
+  const brands = [buffer.toString('latin1', 8, 12)]
+  for (let i = 16; i + 4 <= Math.min(boxSize, 1024); i += 4) {
+    brands.push(buffer.toString('latin1', i, i + 4))
+  }
+  return brands
 }
 
 /**
@@ -73,7 +81,8 @@ export async function detectContentType(
   if ([0x3c, 0x73, 0x76, 0x67].every((b, i) => buffer[i] === b)) {
     return SVG
   }
-  if (hasFtypBox(buffer, [0x61, 0x76, 0x69, 0x66])) {
+  const ftypBrands = getFtypBrands(buffer)
+  if (ftypBrands.includes('avif') || ftypBrands.includes('avis')) {
     return AVIF
   }
   if ([0x00, 0x00, 0x01, 0x00].every((b, i) => buffer[i] === b)) {
@@ -98,7 +107,7 @@ export async function detectContentType(
   ) {
     return JXL
   }
-  if (hasFtypBox(buffer, [0x68, 0x65, 0x69, 0x63])) {
+  if (ftypBrands[0] === 'heic') {
     return HEIC
   }
   if ([0x25, 0x50, 0x44, 0x46, 0x2d].every((b, i) => buffer[i] === b)) {

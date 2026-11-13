@@ -118,6 +118,19 @@ describe('detectContentType', () => {
     const buffer = await getImage('./images/test.avif')
     expect(await detectContentType(buffer)).toBe('image/avif')
   })
+  it('should return avif for animated avif', async () => {
+    const buffer = await getImage('./images/animated.avif')
+    expect(await detectContentType(buffer)).toBe('image/avif')
+  })
+  it('should return avif for animated avif without avif brand', async () => {
+    const buffer = await getImage('./images/animated.avif')
+    buffer.write('iso8', buffer.indexOf('avif'))
+    expect(await detectContentType(buffer)).toBe('image/avif')
+  })
+  it('should return avif for mif1 major brand', async () => {
+    const buffer = await getImage('./images/mif1-major.avif')
+    expect(await detectContentType(buffer)).toBe('image/avif')
+  })
   it('should return icon', async () => {
     const buffer = await getImage('./images/test.ico')
     expect(await detectContentType(buffer)).toBe('image/x-icon')

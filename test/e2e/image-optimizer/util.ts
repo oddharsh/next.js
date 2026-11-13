@@ -406,6 +406,26 @@ export function runTests(ctx: RunTestsCtx) {
     expect(next.cliOutput).toContain(animatedWarnText)
   })
 
+  it('should maintain animated avif', async () => {
+    const query = { w: ctx.w, q: ctx.q, url: '/animated.avif' }
+    const res = await next.fetch(`/_next/image?${toQueryString(query)}`)
+    expect(res.status).toBe(200)
+    expect(res.headers.get('content-type')).toContain('image/avif')
+    expect(res.headers.get('Cache-Control')).toBe(
+      `public, max-age=${isDev ? 0 : minimumCacheTTL}, must-revalidate`
+    )
+    expect(res.headers.get('Vary')).toBe('Accept')
+    expect(res.headers.get('etag')).toBeTruthy()
+    expect(res.headers.get('Content-Disposition')).toBe(
+      `${contentDispositionType}; filename="animated.avif"`
+    )
+    const actual = Buffer.from(await res.arrayBuffer())
+    const expected = await fs.readFile(
+      join(next.testDir, 'public', 'animated.avif')
+    )
+    expect(actual).toEqual(expected)
+  })
+
   it('should not forward cookie header', async () => {
     const query = { w: ctx.w, q: ctx.q, url: '/api/conditional-cookie' }
     const opts = { headers: { accept: 'image/webp', cookie: '1' } }
@@ -948,6 +968,23 @@ export function runTests(ctx: RunTestsCtx) {
       `${contentDispositionType}; filename="test.webp"`
     )
     await expectWidth(res, ctx.w)
+  })
+
+  it('should resize avif with mif1 major brand', async () => {
+    const query = { url: '/mif1-major.avif', w: ctx.w, q: ctx.q }
+    const opts = { headers: { accept: 'image/webp' } }
+    const res = await next.fetch(`/_next/image?${toQueryString(query)}`, opts)
+    expect(res.status).toBe(200)
+    expect(res.headers.get('Content-Type')).toBe('image/webp')
+    expect(res.headers.get('Cache-Control')).toBe(
+      `public, max-age=${isDev ? 0 : minimumCacheTTL}, must-revalidate`
+    )
+    expect(res.headers.get('Vary')).toBe('Accept')
+    expect(res.headers.get('etag')).toBeTruthy()
+    expect(res.headers.get('Content-Disposition')).toBe(
+      `${contentDispositionType}; filename="mif1-major.webp"`
+    )
+    await expectWidth(res, 8)
   })
 
   it('should resize relative url and old Chrome accept header as webp', async () => {
